@@ -216,16 +216,24 @@ dep_vertex_clipping = declare_dependency(
 )
 
 if get_option('weston-launch')
-	dep_pam = cc.find_library('pam')
+	deps_weston_launch = [systemd_dep, dep_libdrm]
 
-	if not cc.has_function('pam_open_session', dependencies: dep_pam)
-		error('pam_open_session not found for weston-launch')
+	if get_option('pam')
+		dep_pam = cc.find_library('pam')
+		if not cc.has_function('pam_open_session', dependencies: dep_pam)
+			error('pam_open_session not found for weston-launch')
+		endif
+
+		if dep_pam.found()
+			deps_weston_launch += dep_pam
+			config_h.set('HAVE_PAM', '1')
+		endif
 	endif
 
 	executable(
 		'weston-launch',
 		'weston-launch.c',
-		dependencies: [dep_pam, systemd_dep, dep_libdrm],
+		dependencies: deps_weston_launch,
 		include_directories: common_inc,
 		install: true
 	)

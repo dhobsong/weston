@@ -51,7 +51,9 @@
 
 #include <pwd.h>
 #include <grp.h>
+#ifdef HAVE_PAM
 #include <security/pam_appl.h>
+#endif
 
 #ifdef HAVE_SYSTEMD_LOGIN
 #include <systemd/sd-login.h>
@@ -100,8 +102,10 @@ drmSetMaster(int drm_fd)
 #endif
 
 struct weston_launch {
+#ifdef HAVE_PAM
 	struct pam_conv pc;
 	pam_handle_t *ph;
+#endif
 	int tty;
 	int ttynr;
 	int sock[2];
@@ -192,6 +196,7 @@ weston_launch_allowed(struct weston_launch *wl)
 	return false;
 }
 
+#ifdef HAVE_PAM
 static int
 pam_conversation_fn(int msg_count,
 		    const struct pam_message **messages,
@@ -232,6 +237,7 @@ setup_pam(struct weston_launch *wl)
 
 	return 0;
 }
+#endif
 
 static int
 setup_launcher_socket(struct weston_launch *wl)
@@ -431,6 +437,7 @@ quit(struct weston_launch *wl, int status)
 	close(wl->signalfd);
 	close(wl->sock[0]);
 
+#ifdef HAVE_PAM
 	if (wl->new_user) {
 		err = pam_close_session(wl->ph, 0);
 		if (err)
@@ -438,6 +445,7 @@ quit(struct weston_launch *wl, int status)
 				err, pam_strerror(wl->ph, err));
 		pam_end(wl->ph, err);
 	}
+#endif
 
 	if (ioctl(wl->tty, KDSKBMUTE, 0) &&
 	    ioctl(wl->tty, KDSKBMODE, wl->kb_mode))
@@ -666,6 +674,7 @@ setup_session(struct weston_launch *wl, char **child_argv)
 	setenv("HOME", wl->pw->pw_dir, 1);
 	setenv("SHELL", wl->pw->pw_shell, 1);
 
+#ifdef HAVE_PAM
 	env = pam_getenvlist(wl->ph);
 	if (env) {
 		for (i = 0; env[i]; ++i) {
@@ -674,6 +683,7 @@ setup_session(struct weston_launch *wl, char **child_argv)
 		}
 		free(env);
 	}
+#endif
 
 	/*
 	 * We open a new session, so it makes sense
@@ -745,8 +755,10 @@ static void
 help(const char *name)
 {
 	fprintf(stderr, "Usage: %s [args...] [-- [weston args..]]\n", name);
+#ifdef HAVE_PAM
 	fprintf(stderr, "  -u, --user      Start session as specified username,\n"
 			"                  e.g. -u joe, requires root.\n");
+#endif
 	fprintf(stderr, "  -t, --tty       Start session on alternative tty,\n"
 			"                  e.g. -t /dev/tty4, requires -u option.\n");
 	fprintf(stderr, "  -v, --verbose   Be verbose\n");
@@ -760,7 +772,9 @@ main(int argc, char *argv[])
 	int i, c;
 	char *tty = NULL;
 	struct option opts[] = {
+#ifdef HAVE_PAM
 		{ "user",    required_argument, NULL, 'u' },
+#endif
 		{ "tty",     required_argument, NULL, 't' },
 		{ "verbose", no_argument,       NULL, 'v' },
 		{ "help",    no_argument,       NULL, 'h' },
@@ -772,11 +786,16 @@ main(int argc, char *argv[])
 	while ((c = getopt_long(argc, argv, "u:t:vh", opts, &i)) != -1) {
 		switch (c) {
 		case 'u':
+#ifdef HAVE_PAM
 			wl.new_user = optarg;
 			if (getuid() != 0) {
 				fprintf(stderr, "weston: Permission denied. -u allowed for root only\n");
 				exit(EXIT_FAILURE);
 			}
+#else
+			fprintf(stderr, "weston: -u is unsupported in this weston-launch build\n");
+			exit(EXIT_FAILURE);
+#endif
 			break;
 		case 't':
 			tty = optarg;
@@ -828,8 +847,10 @@ main(int argc, char *argv[])
 	if (setup_tty(&wl, tty) < 0)
 		exit(EXIT_FAILURE);
 
+#ifdef HAVE_PAM
 	if (wl.new_user && setup_pam(&wl) < 0)
 		exit(EXIT_FAILURE);
+#endif
 
 	if (setup_launcher_socket(&wl) < 0)
 		exit(EXIT_FAILURE);

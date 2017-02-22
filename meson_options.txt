@@ -73,6 +73,13 @@ option(
 )
 
 option(
+	'pam',
+	type: 'boolean',
+	value: true,
+	description: 'Define if PAM is available'
+)
+
+option(
 	'xwayland',
 	type: 'boolean',
 	value: true,
