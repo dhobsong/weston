@@ -40,6 +40,7 @@
 #include <linux/vt.h>
 #include <assert.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <time.h>
 
 #include <xf86drm.h>
@@ -2486,29 +2487,22 @@ drm_device_changed(struct weston_compositor *compositor,
 	wl_signal_emit(&compositor->session_signal, compositor);
 }
 
-/**
- * Determines whether or not a device is capable of modesetting. If successful,
- * sets b->drm.fd and b->drm.filename to the opened device.
- */
 static bool
-drm_device_is_kms(struct drm_backend *b, struct udev_device *device)
+drm_backend_update_kms_device(struct drm_backend *b, struct udev_device *device,
+                const char *name, int fd)
 {
-	const char *filename = udev_device_get_devnode(device);
 	const char *sysnum = udev_device_get_sysnum(device);
 	dev_t devnum = udev_device_get_devnum(device);
 	drmModeRes *res;
-	int id = -1, fd;
+	int id = -1;
 
-	if (!filename)
+	if (!name)
 		return false;
 
-	fd = weston_launcher_open(b->compositor->launcher, filename, O_RDWR);
-	if (fd < 0)
-		return false;
 
 	res = drmModeGetResources(fd);
 	if (!res)
-		goto out_fd;
+		return false;
 
 	if (res->count_crtcs <= 0 || res->count_connectors <= 0 ||
 	    res->count_encoders <= 0)
@@ -2517,7 +2511,7 @@ drm_device_is_kms(struct drm_backend *b, struct udev_device *device)
 	if (sysnum)
 		id = atoi(sysnum);
 	if (!sysnum || id < 0) {
-		weston_log("couldn't get sysnum for device %s\n", filename);
+		weston_log("couldn't get sysnum for device %s\n", name);
 		goto out_res;
 	}
 
@@ -2529,7 +2523,7 @@ drm_device_is_kms(struct drm_backend *b, struct udev_device *device)
 
 	b->drm.fd = fd;
 	b->drm.id = id;
-	b->drm.filename = strdup(filename);
+	b->drm.filename = strdup(name);
 	b->drm.devnum = devnum;
 
 	drmModeFreeResources(res);
@@ -2538,9 +2532,30 @@ drm_device_is_kms(struct drm_backend *b, struct udev_device *device)
 
 out_res:
 	drmModeFreeResources(res);
-out_fd:
-	weston_launcher_close(b->compositor->launcher, fd);
-	return false;
+}
+
+/**
+ * Determines whether or not a device is capable of modesetting. If successful,
+ * sets b->drm.fd and b->drm.filename to the opened device.
+ */
+static bool
+drm_device_is_kms(struct drm_backend *b, struct udev_device *device)
+{
+	int fd;
+	const char *filename = udev_device_get_devnode(device);
+	if (!filename)
+		return false;
+
+	fd = weston_launcher_open(b->compositor->launcher, filename, O_RDWR);
+	if (fd < 0)
+		return false;
+
+	if (!drm_backend_update_kms_device(b, device, filename, fd)) {
+		weston_launcher_close(b->compositor->launcher, fd);
+		return false;
+	}
+
+	return true;
 }
 
 /*
@@ -2628,6 +2643,32 @@ find_primary_gpu(struct drm_backend *b, const char *seat)
 
 	udev_enumerate_unref(e);
 	return drm_device;
+}
+
+static struct udev_device *
+open_launcher_drm_device(struct drm_backend *b, const char *name)
+{
+	struct udev_device *device;
+	struct stat s;
+	int fd = weston_launcher_open(b->compositor->launcher, name, O_RDWR);
+	if (fd < 0)
+		return NULL;
+
+	if (fstat(fd, &s) < 0 || !S_ISCHR(s.st_mode))
+		goto out_fd;
+
+	device = udev_device_new_from_devnum(b->udev, 'c', s.st_rdev);
+	if (!device)
+		goto out_fd;
+
+	if (!drm_backend_update_kms_device(b, device, name, fd))
+		goto out_fd;
+
+	return device;
+
+out_fd:
+	weston_launcher_close(b->compositor->launcher, fd);
+	return NULL;
 }
 
 static struct udev_device *
