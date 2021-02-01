@@ -40,6 +40,9 @@ static const struct launcher_interface *ifaces[] = {
 	&launcher_logind_iface,
 #endif
 	&launcher_weston_launch_iface,
+#ifdef BUILD_DRM_LEASE_CLIENT
+	&launcher_drm_lease_iface,
+#endif
 	&launcher_direct_iface,
 	NULL,
 };

@@ -149,6 +149,11 @@ deps_session_helper = [ dep_libweston_private_h ]
 
 if get_option('backend-drm')
 	deps_session_helper += dep_libdrm
+	if get_option('drm-lease')
+		deps_session_helper += dependency('libdlmclient')
+		srcs_session_helper += 'launcher-drm-lease.c'
+		config_h.set('BUILD_DRM_LEASE_CLIENT', '1')
+	endif
 endif
 
 systemd_dep = dependency('', required: false)
