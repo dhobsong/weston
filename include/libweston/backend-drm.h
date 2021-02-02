@@ -223,6 +223,9 @@ struct weston_drm_backend_config {
 
 	/** Use shadow buffer if using Pixman-renderer. */
 	bool use_pixman_shadow;
+
+	/** DRM lease name */
+	char *drm_lease_name;
 };
 
 #ifdef  __cplusplus

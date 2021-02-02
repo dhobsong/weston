@@ -2897,6 +2897,10 @@ drm_backend_create(struct weston_compositor *compositor,
 
 	if (config->specific_device)
 		drm_device = open_specific_drm_device(b, config->specific_device);
+#ifdef BUILD_DRM_LEASE_CLIENT
+	else if (config->drm_lease_name)
+		drm_device = open_launcher_drm_device(b, config->drm_lease_name);
+#endif
 	else
 		drm_device = find_primary_gpu(b, seat_id);
 	if (drm_device == NULL) {

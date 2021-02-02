@@ -669,6 +669,9 @@ usage(int error_code)
 		"  --seat=SEAT\t\tThe seat that weston should run on, instead of the seat defined in XDG_SEAT\n"
 		"  --tty=TTY\t\tThe tty to use\n"
 		"  --drm-device=CARD\tThe DRM device to use, e.g. \"card0\".\n"
+#ifdef BUILD_DRM_LEASE_CLIENT
+		"  --drm-lease=lease\tUse the specified DRM lease. e.g \"card0-HDMI-A-1\"\n"
+#endif
 		"  --use-pixman\t\tUse the pixman (CPU) renderer\n"
 		"  --current-mode\tPrefer current KMS mode over EDID preferred mode\n\n");
 #endif
@@ -2492,6 +2495,7 @@ load_drm_backend(struct weston_compositor *c,
 		{ WESTON_OPTION_STRING, "seat", 0, &config.seat_id },
 		{ WESTON_OPTION_INTEGER, "tty", 0, &config.tty },
 		{ WESTON_OPTION_STRING, "drm-device", 0, &config.specific_device },
+		{ WESTON_OPTION_STRING, "drm-lease", 0, &config.drm_lease_name },
 		{ WESTON_OPTION_BOOLEAN, "current-mode", 0, &wet->drm_use_current_mode },
 		{ WESTON_OPTION_BOOLEAN, "use-pixman", 0, &config.use_pixman },
 	};
@@ -2526,6 +2530,7 @@ load_drm_backend(struct weston_compositor *c,
 
 	free(config.gbm_format);
 	free(config.seat_id);
+	free(config.drm_lease_name);
 
 	return ret;
 }
